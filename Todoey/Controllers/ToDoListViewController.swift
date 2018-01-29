@@ -8,21 +8,49 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class ToDoListViewController: UITableViewController {
+class ToDoListViewController: SwipeTableViewController {
 
     var todoItems: Results<Item>?
     let realm = try! Realm()
+    
+    @IBOutlet weak var searchBar: UISearchBar!
+    
     var selectedCategory: Category? {
         didSet {
            loadItems()
-            
         }
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
+      
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        
+        title = selectedCategory?.name
+        
+        guard let colourHex = selectedCategory?.colour else {
+            fatalError()
+        }
+        
+        updateNavBar(withHexCode: colourHex)
+        
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        
+        updateNavBar(withHexCode: "1D9BF6")
+    }
+    
+    //MARK: - Nav Bar Setup Methods
+    
+    override func updateNavBar(withHexCode colourHexCode: String) {
+        super.updateNavBar(withHexCode: colourHexCode)
+        
+        searchBar.barTintColor = UIColor(hexString: colourHexCode)
     }
     
     //MARK: - Tableview Datasource Methods
@@ -33,10 +61,16 @@ class ToDoListViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         
         if let item = todoItems?[indexPath.row] {
             cell.textLabel?.text = item.title
+            
+            if let colour = UIColor(hexString: selectedCategory!.colour)?.darken(byPercentage: CGFloat(indexPath.row) / CGFloat(todoItems!.count)) {
+               cell.backgroundColor = colour
+                cell.textLabel?.textColor = ContrastColorOf(colour, returnFlat: true)
+            }
+            
             cell.accessoryType = item.done ? .checkmark : .none
         } else {
             cell.textLabel?.text = "No Items Added"
@@ -110,7 +144,20 @@ class ToDoListViewController: UITableViewController {
         tableView.reloadData()
     }
     
-    
+    //MARK: - Delete Data From Swipe
+
+    override func updateModel(at indexPath: IndexPath) {
+        if let itemForDeletion = self.todoItems?[indexPath.row] {
+            do {
+                try realm.write {
+                    realm.delete(itemForDeletion)
+                }
+            } catch {
+                print("Error deleting item, \(error)")
+            }
+        }
+    }
+
 }
 //MARK: - Search Bar Methods
 extension ToDoListViewController: UISearchBarDelegate {
@@ -132,6 +179,9 @@ extension ToDoListViewController: UISearchBarDelegate {
             // Dismiss the keyboard and searchBar stop being first responder
                 searchBar.resignFirstResponder()
             }
+        } else {
+            searchBarSearchButtonClicked(searchBar)
         }
     }
+    
 }
